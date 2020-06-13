@@ -51,8 +51,6 @@ do
 			shift
 			;;
 		-k|--kernel)
-			#cmd+="-kernel linux/arch/x86/boot/bzImage -append \"root=/dev/sda1 console=ttyS0 rw nokaslr\" "
-
 			kernel_cmd+="-kernel linux/arch/x86/boot/bzImage "
 			;;
 		-i|--init)
@@ -64,7 +62,7 @@ do
 			shift
 			;;
 		-cf|--fedora)
-			cmdline="root=/dev/mapper/fedora-root ro resume=/dev/mapper/fedora-swap rd.lvm.lv=fedora/root rd.lvm.lv=fedora/swap rhgb"
+			cmdline="root=/dev/mapper/fedora-root ro rd.lvm.lv=fedora/root "
 			;;
 		-p|--port)
 			net_cmd+=",hostfwd=tcp::$2-:$3"
