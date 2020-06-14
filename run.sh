@@ -11,7 +11,7 @@ PAUSE=0
 
 cmd="qemu-system-x86_64 -enable-kvm -serial stdio -soundhw hda "
 
-cmdline_pre="\"console=ttyS0 "
+cmdline_pre="\"console=ttyS0 earlyprintk=serial "
 cmdline_post=" rw nokaslr\" "
 cmdline=""
 kernel_cmd=""
@@ -58,11 +58,12 @@ do
 			shift
 			;;
 		-c|--cmdline)
-			cmdline=$2
+			cmdline+=$2
 			shift
 			;;
-		-cf|--fedora)
-			cmdline="root=/dev/mapper/fedora-root ro rd.lvm.lv=fedora/root "
+		-fs|--fedora-server)
+			cmdline+="root=/dev/mapper/fedora-root ro rd.lvm.lv=fedora/root "
+			cmd+="-initrd fedora-server/initramfs.img "
 			;;
 		-p|--port)
 			net_cmd+=",hostfwd=tcp::$2-:$3"
@@ -98,6 +99,20 @@ do
 			PAUSE=1
 			cmd+="$SPICE"
 			SPICE_CMD="Connect to Viewer via Spice\nremote-viewer spice+unix:///tmp/vm_spice.socket"
+			;;
+		--syzrepro)
+			cmd+="-no-reboot "
+			cmdline+="oops=panic nmi_watchdog=panic panic_on_warn=1 panic=1 "
+			cmdline+="ftrace_dump_on_oops=orig_cpu rodata=n vsyscall=native "
+			cmdline+="net.ifnames=0 biosdevname=0 kvm-intel.nested=1 "
+			cmdline+="kvm-intel.unrestricted_guest=1 kvm-intel.vmm_exclusive=1 "
+			cmdline+="kvm-intel.fasteoi=1 kvm-intel.ept=1 kvm-intel.flexpriority=1 "
+			cmdline+="kvm-intel.vpid=1 kvm-intel.emulate_invalid_guest_state=1 "
+			cmdline+="kvm-intel.eptad=1 kvm-intel.enable_shadow_vmcs=1 kvm-intel.pml=1 kvm-intel.enable_apicv=1 "
+			cmdline_post=" rw\" "
+			;;
+		--fake)
+			FAKE=1
 			;;
 		*)
 			cmd+="-hda $1 "
@@ -150,4 +165,7 @@ then
 	sleep 3
 fi
 
-eval $cmd
+if [ $FAKE -eq 0 ]
+then
+	eval $cmd
+fi
