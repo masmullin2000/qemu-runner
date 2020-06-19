@@ -8,8 +8,12 @@ SPICE_CMD=""
 
 DRVCNT=0
 PAUSE=0
+FAKE=0
 
-cmd="qemu-system-x86_64 -enable-kvm -serial stdio -soundhw hda "
+APP=qemu-system-x86_64
+#APP=kvm
+
+cmd="$APP -enable-kvm -serial stdio -soundhw hda "
 
 cmdline_pre="\"console=ttyS0 earlyprintk=serial "
 cmdline_post=" rw nokaslr\" "
@@ -64,6 +68,10 @@ do
 		-fs|--fedora-server)
 			cmdline+="root=/dev/mapper/fedora-root ro rd.lvm.lv=fedora/root "
 			cmd+="-initrd fedora-server/initramfs.img "
+			;;
+		-fd|--fedora-desktop)
+			cmdline+="root=/dev/mapper/fedora_localhost--live-root ro rd.lvm.lv=fedora_localhost-live/root "
+			cmd+="-initrd fedora-desktop/initramfs.img "
 			;;
 		-p|--port)
 			net_cmd+=",hostfwd=tcp::$2-:$3"
