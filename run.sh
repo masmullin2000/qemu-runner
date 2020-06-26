@@ -2,7 +2,7 @@ RAM=8G
 SMP=8
 FOLDER_AMT=0
 
-SPICE="-vga qxl -device virtio-serial-pci -device virtserialport,chardev=spicechannel0,name=com.redhat.spice.0 "
+SPICE="-device virtio-serial-pci -device virtserialport,chardev=spicechannel0,name=com.redhat.spice.0 "
 SPICE+="-chardev spicevmc,id=spicechannel0,name=vdagent -spice unix,addr=/tmp/vm_spice.socket,disable-ticketing "
 SPICE_CMD=""
 
@@ -13,13 +13,15 @@ FAKE=0
 APP=qemu-system-x86_64
 #APP=kvm
 
-cmd="$APP -enable-kvm -serial stdio -soundhw hda "
+cmd="$APP -cpu host -vga virtio -enable-kvm -serial stdio -soundhw hda -usb -device usb-tablet "
 
 cmdline_pre="\"console=ttyS0 earlyprintk=serial "
 cmdline_post=" rw nokaslr\" "
 cmdline=""
 kernel_cmd=""
-net_cmd+="-net user,hostfwd=tcp::2222-:22"
+net_cmd=""
+port_cmd=""
+ssh_cmd=""
 
 while [ ! -z "$1" ]
 do
@@ -74,8 +76,12 @@ do
 			cmd+="-initrd fedora-desktop/initramfs.img "
 			;;
 		-p|--port)
-			net_cmd+=",hostfwd=tcp::$2-:$3"
+			port_cmd+=",hostfwd=tcp::$2-:$3"
 			shift
+			shift
+			;;
+		-s|--ssh)
+			ssh_cmd+=",hostfwd=tcp::$2-:22"
 			shift
 			;;
 		-n|--nodisplay)
@@ -133,12 +139,20 @@ if [ -z "$cmdline" ]
 then
 	cmdline="root=/dev/sda1"
 fi
+
+fwd_cmd=$ssh_cmd
+fwd_cmd+=$port_cmd
+
+if [ ! -z $fwd_cmd ]
+then
+	net_cmd="-net user"
+	net_cmd+=$fwd_cmd
+	net_cmd+=" -net nic "
+fi
+
 cmdline_full=$cmdline_pre
 cmdline_full+=$cmdline
 cmdline_full+=$cmdline_post
-
-net_cmd+=" -net nic "
-
 
 cmd+=$net_cmd
 cmd+="-m $RAM -smp $SMP "
