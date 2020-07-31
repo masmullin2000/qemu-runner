@@ -9,11 +9,14 @@ SPICE_CMD=""
 DRVCNT=0
 PAUSE=0
 FAKE=0
+DAEMON=0
+UEFI=0
+JAIL=0
 
 APP=qemu-system-x86_64
 #APP=kvm
 
-cmd="$APP -cpu host -vga virtio -enable-kvm -serial stdio -soundhw hda -usb -device usb-tablet "
+cmd="$APP -cpu host -vga virtio -enable-kvm -soundhw hda -usb -device usb-tablet "
 
 cmdline_pre="\"console=ttyS0 earlyprintk=serial "
 cmdline_post=" rw nokaslr\" "
@@ -49,7 +52,7 @@ do
 			shift
 			;;
 		-cd|--cdrom)
-			cmd+="-cdrom $2 "
+			cmd+="-boot d -cdrom $2 "
 			shift
 			;;
 		-kl|--kernel-locate)
@@ -114,6 +117,18 @@ do
 			cmd+="$SPICE"
 			SPICE_CMD="Connect to Viewer via Spice\nremote-viewer spice+unix:///tmp/vm_spice.socket"
 			;;
+		-x|--daemon)
+			DAEMON=1
+			cmd+="-daemonize "
+			;;
+		-u|--uefi)
+			UEFI=1
+			cmd+="-drive file=uefi/OVMF_CODE.fd,if=pflash,format=raw,unit=0,readonly=on "
+			cmd+="-drive file=uefi/OVMF_VARS.fd,if=pflash,format=raw,unit=1 "
+			;;
+		--jail)
+			JAIL=1
+			;;
 		--syzrepro)
 			cmd+="-no-reboot "
 			cmdline+="oops=panic nmi_watchdog=panic panic_on_warn=1 panic=1 "
@@ -130,6 +145,7 @@ do
 			;;
 		*)
 			cmd+="-hda $1 "
+			ROOT=`realpath $1`
 			;;
 	esac
 	shift
@@ -137,8 +153,13 @@ done
 
 if [ -z "$cmdline" ]
 then
-	cmdline="root=/dev/sda1"
+	cmdline="root=/dev/sr0 "
 fi
+
+if [ $DAEMON -eq 0 ]
+then
+	cmd+="-serial stdio "
+fi	
 
 fwd_cmd=$ssh_cmd
 fwd_cmd+=$port_cmd
@@ -164,7 +185,11 @@ then
 	cmd+=$cmdline_full
 fi
 
-echo $cmd
+if [ $JAIL -eq 1 ]
+then
+	cmd="sandbox -t qemu_t firejail "$cmd
+fi
+
 while [ "$FOLDER_AMT" -gt 0 ]
 do
 	FOLDER_AMT=$(($FOLDER_AMT - 1))
@@ -190,4 +215,6 @@ fi
 if [ $FAKE -eq 0 ]
 then
 	eval $cmd
+else
+	echo $cmd
 fi
