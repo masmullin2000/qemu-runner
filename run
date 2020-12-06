@@ -1,3 +1,5 @@
+#!/bin/bash
+
 RAM=8G
 SMP=8
 FOLDER_AMT=0
@@ -79,7 +81,7 @@ do
 			cmd+="-initrd fedora-desktop/initramfs.img "
 			;;
 		-p|--port)
-			port_cmd+=",hostfwd=tcp::$2-:$3"
+			port_cmd+=",hostfwd=udp::$2-:$3,hostfwd=tcp::$2-:$3"
 			shift
 			shift
 			;;
@@ -126,6 +128,11 @@ do
 			cmd+="-drive file=uefi/OVMF_CODE.fd,if=pflash,format=raw,unit=0,readonly=on "
 			cmd+="-drive file=uefi/OVMF_VARS.fd,if=pflash,format=raw,unit=1 "
 			;;
+		--bridge)
+			cmd+="-net nic -net bridge,br=br0 "
+			#cmd+="-device virtio-net-pci "
+			
+			;;
 		--jail)
 			JAIL=1
 			;;
@@ -145,7 +152,6 @@ do
 			;;
 		*)
 			cmd+="-hda $1 "
-			ROOT=`realpath $1`
 			;;
 	esac
 	shift
@@ -164,7 +170,7 @@ fi
 fwd_cmd=$ssh_cmd
 fwd_cmd+=$port_cmd
 
-if [ ! -z $fwd_cmd ]
+if [ ! -z "$fwd_cmd" ]
 then
 	net_cmd="-net user"
 	net_cmd+=$fwd_cmd
