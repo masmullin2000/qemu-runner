@@ -30,8 +30,8 @@ if [[ $1 == "up" ]]; then
 	sudo nmcli connection down "Wired connection 1"
 	sudo nmcli connection up bridge-br0
 	# sudo ip tuntap add dev tap0 mode tap
- # 	sudo ip link set dev tap0 up
- # 	sudo ip link set tap0 master br0
+ 	# sudo ip link set dev tap0 up
+ 	# sudo ip link set tap0 master br0
 
 elif [[ $1 == "down" ]]; then
 	TAPS=$(ip a | grep tap | awk '{ print $2; }' | sed 's/://g')
@@ -43,4 +43,5 @@ elif [[ $1 == "down" ]]; then
 	sudo nmcli connection del bridge-slave-enp7s0
 	sudo nmcli connection del bridge-br0
 	sudo nmcli connection up "Wired connection 1"
+	sudo ip link del dev br0
 fi

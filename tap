@@ -1,0 +1,17 @@
+#!/bin/bash
+
+i=$((0))
+
+TAPS=$(ip a | grep tap | awk '{ print $2; }' | sed 's/://g')
+for t in $TAPS; do
+	tap="tap$i"
+	if [[ $tap == $t ]]; then
+		i=$((i+1))
+	else
+		break
+	fi
+done
+
+sudo ip tuntap add dev "tap$i" mode tap
+sudo ip link set dev "tap$i" up
+sudo ip link set "tap$i" master br0

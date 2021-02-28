@@ -1,0 +1,21 @@
+#!/bin/bash
+
+rm -rf qemuclust
+mkdir qemuclust
+cp $1 qemuclust/OS.img
+AMT=$(( $2-1 ))
+
+for (( i=0; i<$AMT; i++)); do
+	cp qemuclust/OS.img qemuclust/OS$i.img
+	./run qemuclust/OS$i.img -r 2 -j 2 --bridge -x \
+		-kl ~/kernel/linux/arch/x86/boot/bzImage \
+		-c "root=/dev/sda2 net.ifnames=0 biosdevname=0"
+done
+
+sleep 40
+nmap 192.168.0.* -p 22 | grep open -B 4 | grep 192 | grep -vE "\.79$|\.10$|\.46$" | awk '{ print $5; }'
+
+cp qemuclust/OS.img qemuclust/OSdbg.img
+./run qemuclust/OSdbg.img -r 2 -j 2 --bridge \
+		-kl ~/kernel/linux/arch/x86/boot/bzImage \
+		-c "root=/dev/sda2 net.ifnames=0 biosdevname=0 loglevel=7"

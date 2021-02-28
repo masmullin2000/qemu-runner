@@ -8,6 +8,25 @@ THREAD="false"
 RAM=1024
 kernel_path=""
 rootfs_path=""
+tap_ctr=$((0))
+TAP_DEV=""
+SOCKET="/tmp/firecracker0.socket"
+FIRECRACKER="/home/mm/bin/firecracker-new"
+
+make_tap() {
+	TAPS=$(ip a | grep tap | awk '{ print $2; }' | sed 's/://g')
+	for t in $TAPS; do
+		tap="tap$tap_ctr"
+		if [[ $tap == $t ]]; then
+			tap_ctr=$((tap_ctr+1))
+		else
+			break
+		fi
+	done
+	sudo ip tuntap add dev "tap$tap_ctr" mode tap
+	sudo ip link set dev "tap$tap_ctr" up
+	sudo ip link set "tap$tap_ctr" master br0
+}
 
 while [ ! -z "$1" ]
 do
@@ -23,7 +42,7 @@ do
 			THREAD="true"
 			;;
 		-m|--ram)
-			RAM=$(( 1024*$2 ))
+			RAM=$((1024*$2))
 			shift
 			;;
 		-k|--kernel)
@@ -41,6 +60,16 @@ do
 			INITRAMFS=$2
 			shift
 			;;
+		-n|--network)
+			#TAP_DEV="tap"
+			#TAP_DEV+=$2
+			make_tap
+			TAP_DEV="tap$tap_ctr"
+			;;
+		-s|--socket)
+			SOCKET="/tmp/firecracker$2.socket"
+			shift
+			;;
 		*)
 			if [[ "$kernel_path" == "" ]]; then
 				kernel_path=$1
@@ -53,8 +82,13 @@ do
 done
 
 if [[ "$RUN_AS" == "server" ]]; then
-	rm -f /tmp/firecracker.socket
-	firecracker --api-sock /tmp/firecracker.socket
+	for i in {0..10}; do
+		if [[ ! -e /tmp/firecracker$i.socket ]]; then
+			$FIRECRACKER --api-sock /tmp/firecracker$i.socket
+			rm -rf /tmp/firecracker$i.socket
+			exit 0
+		fi
+	done
 fi
 
 if [[ "$RUN_AS" == "client" ]]; then
@@ -67,13 +101,26 @@ if [[ "$RUN_AS" == "client" ]]; then
 	fi
 	K_STR+=" }"
 
-	curl --unix-socket /tmp/firecracker.socket -i \
+	if [[ -n "$TAP_DEV" ]]; then
+  		E=$(printf '%02x' $tap_ctr)
+  		curl --unix-socket $SOCKET -i     \
+	 	-X PUT 'http://localhost/network-interfaces/eth0' \
+		-H 'Accept: application/json'                     \
+		-H 'Content-Type: application/json'               \
+		-d "{
+			\"iface_id\": \"eth0\",
+			\"guest_mac\": \"AA:BB:00:00:00:$E\",
+			\"host_dev_name\": \""$TAP_DEV"\"
+		}"
+	fi
+	
+	curl --unix-socket $SOCKET -i \
 		-X PUT 'http://localhost/boot-source'     \
 		-H 'Accept: application/json'             \
 		-H 'Content-Type: application/json'       \
 		-d "$K_STR"
 
-	curl --unix-socket /tmp/firecracker.socket -i \
+	curl --unix-socket $SOCKET -i \
 		-X PUT 'http://localhost/drives/rootfs'   \
 		-H 'Accept: application/json'             \
 		-H 'Content-Type: application/json'       \
@@ -84,7 +131,7 @@ if [[ "$RUN_AS" == "client" ]]; then
 			\"is_read_only\": false
 		}"
 
-	curl --unix-socket /tmp/firecracker.socket -i  \
+	curl --unix-socket $SOCKET -i  \
 		-X PUT 'http://localhost/machine-config'   \
 		-H 'Accept: application/json'              \
 		-H 'Content-Type: application/json'        \
@@ -94,21 +141,11 @@ if [[ "$RUN_AS" == "client" ]]; then
 			\"ht_enabled\": $THREAD
 		}"
 
-	curl --unix-socket /tmp/firecracker.socket -i     \
-	 	-X PUT 'http://localhost/network-interfaces/eth0' \
-		-H 'Accept: application/json'                     \
-		-H 'Content-Type: application/json'               \
-		-d '{
-			"iface_id": "eth0",
-			"guest_mac": "AA:BB:00:00:00:01",
-			"host_dev_name": "tap0"
-		}'
-
-	curl --unix-socket /tmp/firecracker.socket -i \
+	curl --unix-socket $SOCKET -i \
 		-X PUT 'http://localhost/actions'         \
 		-H  'Accept: application/json'            \
 		-H  'Content-Type: application/json'      \
-		-d '{
-			"action_type": "InstanceStart"
-		}'
+		-d "{
+			\"action_type\": \"InstanceStart\"
+		}"
 fi

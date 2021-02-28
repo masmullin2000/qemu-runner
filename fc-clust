@@ -1,0 +1,34 @@
+#!/bin/bash
+
+pkill firecracker
+sleep 1
+rm /tmp/firecracker*.socket
+sudo umount fireclust/o*
+rm -rf fireclust
+
+if [[ $1 != "clean" ]]; then
+	for (( i=0; i<$2; i++)); do
+	 	./fc server &
+	 	sleep 1
+	done
+
+	mkdir -p fireclust/base
+	cp $1 fireclust/base/OS.ext4
+	cp $1 fireclust/master.ext4
+
+	for (( i=0; i<$2; i++)); do
+		mkdir -p fireclust/{w$i,u$i,o$i}
+		sudo mount -t overlay -o \
+			lowerdir=fireclust/base,upperdir=fireclust/u$i,workdir=fireclust/w$i \
+			none fireclust/o$i
+	done
+
+	for (( i=0; i<$2; i++)); do
+		./fc -c -r fireclust/o$i/OS.ext4 -k ~/kernel/linux/vmlinux -m 4 -j 2 -n --socket $i &
+		sleep 1
+	done
+	sleep 60
+	echo "doing nmap"
+	nmap 192.168.0.* -p 22 | grep open -B 4 | grep 192 | grep -vE "\.79$|\.10$|\.46|137$" | awk '{ print $5; }'
+fi
+

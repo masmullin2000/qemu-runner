@@ -1,0 +1,45 @@
+#!/bin/bash
+
+QMU_IMG=$2
+BASE=`pwd`
+EXT=$BASE/ext4-dir
+
+sudo umount ext4-dir
+sudo umount raw-dir
+rm -rf ext4-dir raw-dir
+mkdir ext4-dir raw-dir
+
+rm OS.ext4
+dd if=/dev/zero of=OS.ext4 bs=1G count=$1
+mkfs.ext4 OS.ext4
+
+LOOP_0=`sudo losetup -f`
+sudo losetup -fP OS.ext4
+sudo mount $LOOP_0 ext4-dir
+
+LOOP_1=`sudo losetup -f`
+
+isqemu=$(file $QMU_IMG | grep -i "qemu qcow2")
+if [[ ! -z "$isqemu" ]]; then
+	rm $2.raw
+	qemu-img convert -f qcow2 -O raw $2 $2.raw
+	QMU_IMG="$2.raw"
+fi
+
+sudo losetup -fP $QMU_IMG
+sudo mount $LOOP_1$3 raw-dir
+
+cd raw-dir
+cd root
+sudo tar c . | sudo tar x -C $EXT
+cd $BASE
+sudo rm -rf ext4-dir/lost+found
+sudo rm ext4-dir/etc/fstab
+sudo touch ext4-dir/.autorelabel
+ls -l ext4-dir
+
+sudo umount raw-dir
+sudo umount ext4-dir
+sudo losetup -d $LOOP_1
+sudo losetup -d $LOOP_0
+rm -rf raw-dir ext4-dir

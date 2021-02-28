@@ -18,15 +18,31 @@ JAIL=0
 APP=qemu-system-x86_64
 #APP=kvm
 
-cmd="$APP -cpu host -vga virtio -enable-kvm -soundhw hda -usb -device usb-tablet "
+cmd="$APP -cpu host -vga virtio -enable-kvm -device intel-hda -device hda-duplex -usb -device usb-tablet "
 
 cmdline_pre="\"console=ttyS0 earlyprintk=serial "
-cmdline_post=" rw nokaslr\" "
+cmdline_post=" rw nokaslr \" "
 cmdline=""
 kernel_cmd=""
 net_cmd=""
 port_cmd=""
 ssh_cmd=""
+tap_ctr=$((0))
+
+make_tap() {
+	TAPS=$(ip a | grep tap | awk '{ print $2; }' | sed 's/://g')
+	for t in $TAPS; do
+		tap="tap$tap_ctr"
+		if [[ $tap == $t ]]; then
+			tap_ctr=$((tap_ctr+1))
+		else
+			break
+		fi
+	done
+	sudo ip tuntap add dev "tap$tap_ctr" mode tap
+	sudo ip link set dev "tap$tap_ctr" up
+	sudo ip link set "tap$tap_ctr" master br0
+}
 
 while [ ! -z "$1" ]
 do
@@ -73,15 +89,16 @@ do
 			shift
 			;;
 		-fs|--fedora-server)
-			cmdline+="root=/dev/mapper/fedora-root ro rd.lvm.lv=fedora/root "
-			cmd+="-initrd fedora-server/initramfs.img "
+			kernel_cmd+="-kernel fed_serv/vmlinuz "
+			cmdline+="root=/dev/mapper/fedora_fedora-root ro rd.lvm.lv=fedora_fedora/root lsm=selinux,bpf "
+			cmd+="-initrd fed_serv/initramfs.img "
 			;;
 		-fd|--fedora-desktop)
 			cmdline+="root=/dev/mapper/fedora_localhost--live-root ro rd.lvm.lv=fedora_localhost-live/root "
 			cmd+="-initrd fedora-desktop/initramfs.img "
 			;;
 		-p|--port)
-			port_cmd+=",hostfwd=udp::$2-:$3,hostfwd=tcp::$2-:$3"
+			port_cmd+=",hostfwd=tcp::$2-:$3"
 			shift
 			shift
 			;;
@@ -129,8 +146,15 @@ do
 			cmd+="-drive file=uefi/OVMF_VARS.fd,if=pflash,format=raw,unit=1 "
 			;;
 		--bridge)
-			cmd+="-net nic -net bridge,br=br0 "
+			#cmd+="-net nic -net bridge,br=br0 "
 			#cmd+="-device virtio-net-pci "
+			make_tap
+			E=$(printf '%02x' $tap_ctr)
+			echo $E
+			cmd+="-netdev type=tap,id=net$tap_ctr,ifname=tap$tap_ctr,script=no,downscript=no "
+			cmd+="-device virtio-net-pci,netdev=net$tap_ctr,mac=AA:BB:00:00:00:$E  "
+			
+			#shift
 			
 			;;
 		--jail)
@@ -159,7 +183,7 @@ done
 
 if [ -z "$cmdline" ]
 then
-	cmdline="root=/dev/sr0 "
+	cmdline="root=/dev/sda1 "
 fi
 
 if [ $DAEMON -eq 0 ]
@@ -220,6 +244,7 @@ fi
 
 if [ $FAKE -eq 0 ]
 then
+	echo $cmd
 	eval $cmd
 else
 	echo $cmd
