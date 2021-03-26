@@ -1,5 +1,7 @@
 #!/bin/bash
 
+FC=/home/mm/bin/fc
+
 pkill firecracker
 sleep 1
 rm /tmp/firecracker*.socket
@@ -8,7 +10,7 @@ rm -rf fireclust
 
 if [[ $1 != "clean" ]]; then
 	for (( i=0; i<$2; i++)); do
-	 	./fc server &
+	 	$FC server &
 	 	sleep 1
 	done
 
@@ -24,7 +26,7 @@ if [[ $1 != "clean" ]]; then
 	done
 
 	for (( i=0; i<$2; i++)); do
-		./fc -c -r fireclust/o$i/OS.ext4 -k ~/kernel/linux/vmlinux -m 4 -j 2 -n --socket $i &
+		$FC -c -r fireclust/o$i/OS.ext4 -k ~/code/linux/vmlinux -m 4 -j 2 -n --socket $i &
 		sleep 1
 	done
 	sleep 60

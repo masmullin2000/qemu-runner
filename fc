@@ -11,7 +11,7 @@ rootfs_path=""
 tap_ctr=$((0))
 TAP_DEV=""
 SOCKET="/tmp/firecracker0.socket"
-FIRECRACKER="/home/mm/bin/firecracker-new"
+FIRECRACKER="firecracker"
 
 make_tap() {
 	TAPS=$(ip a | grep tap | awk '{ print $2; }' | sed 's/://g')
@@ -84,6 +84,7 @@ done
 if [[ "$RUN_AS" == "server" ]]; then
 	for i in {0..10}; do
 		if [[ ! -e /tmp/firecracker$i.socket ]]; then
+			rm -rf /tmp/firecracker$i.socket
 			$FIRECRACKER --api-sock /tmp/firecracker$i.socket
 			rm -rf /tmp/firecracker$i.socket
 			exit 0

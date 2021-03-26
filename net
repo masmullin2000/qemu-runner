@@ -1,47 +1,72 @@
 #!/bin/bash
 
-# if [[ $1 == "up" ]]; then
-# 	shift
-# 	sudo ip link add name br0 type bridge
-# 	sudo ip link set dev br0 up
-# 	sudo ip link set dev enp7s0 up
-# 	sudo ip addr flush dev enp7s0
-# 	sudo ip link set dev enp7s0 master br0
+HOST_NET=$(ip link | awk '{ print $2; }' | grep en | sed 's/://g')
+NETWORK="192.168.0."
+BR_IP=$NETWORK+"3"
+GW_IP=$NETWORK+"1"
 
-# 	sudo ip tuntap add dev tap0 mode tap
-# 	sudo ip link set dev tap0 up
-# 	sudo ip link set tap0 master br0
-# 	sudo ip link set dev enp7s0 down
-# 	sudo ip link set dev enp7s0 up
-
-# elif [[ $1 == "down" ]]; then
-# 	shift
-# 	sudo ip link set tap0 nomaster
-# 	sudo ip link del tap0
-# 	sudo ip link set dev enp7s0 nomaster
-# 	sudo ip link del dev br0
-# 	sudo ip link set dev enp7s0 down
-# 	sudo ip link set dev enp7s0 up
-# fi
-
-if [[ $1 == "up" ]]; then
-	sudo nmcli connection add type bridge ifname br0 stp no
-	sudo nmcli connection add type bridge-slave ifname enp7s0 master br0
-	sudo nmcli connection down "Wired connection 1"
-	sudo nmcli connection up bridge-br0
-	# sudo ip tuntap add dev tap0 mode tap
- 	# sudo ip link set dev tap0 up
- 	# sudo ip link set tap0 master br0
-
-elif [[ $1 == "down" ]]; then
+clean_tap() {
 	TAPS=$(ip a | grep tap | awk '{ print $2; }' | sed 's/://g')
 	for t in $TAPS; do
 		sudo ip link set $t nomaster
 		sudo ip link del $t
 	done
-	sudo nmcli connection down bridge-br0
-	sudo nmcli connection del bridge-slave-enp7s0
-	sudo nmcli connection del bridge-br0
-	sudo nmcli connection up "Wired connection 1"
+}
+
+if [[ $1 == "up" ]]; then
+	shift
+	sudo ip link add name br0 type bridge
+	sudo ip link set dev br0 up
+	sudo ip link set dev $HOST_NET up
+	sudo ip addr flush dev $HOST_NET
+	sudo ip link set dev $HOST_NET master br0
+	sudo ip addr add $BR_IP/24 dev br0
+	sudo ip route add default via $GW_IP dev br0
+
+	# sudo ip tuntap add dev tap0 mode tap
+	# sudo ip link set dev tap0 up
+	# sudo ip link set tap0 master br0
+	#sudo ip link set dev $HOST_NET down
+	#sudo ip link set dev $HOST_NET up
+
+elif [[ $1 == "down" ]]; then
+	shift
+	TAPS=$(ip a | grep tap | awk '{ print $2; }' | sed 's/://g')
+	for t in $TAPS; do
+		sudo ip link set $t nomaster
+		sudo ip link del $t
+	done
+	sudo ip link set dev $HOST_NET nomaster
 	sudo ip link del dev br0
+	sudo ip link set dev $HOST_NET down
+	sudo ip link set dev $HOST_NET up
+elif [[ $1 == "ct" ]]; then
+	clean_tap
 fi
+
+# HOST_NET=$(ip link | grep enp | awk '{ print $2; }' | sed 's/://g')
+# if [[ $1 == "up" ]]; then
+# 	sudo nmcli connection add type bridge ifname br0 stp no
+# 	sudo nmcli connection add type bridge-slave ifname $HOST_NET master br0
+# 	sudo nmcli connection down "Wired connection 1"
+# 	sleep 2
+# 	sudo nmcli connection up bridge-br0
+
+# 	# sudo ip tuntap add dev tap0 mode tap
+#  	# sudo ip link set dev tap0 up
+#  	# sudo ip link set tap0 master br0
+
+# elif [[ $1 == "down" ]]; then
+# 	TAPS=$(ip a | grep tap | awk '{ print $2; }' | sed 's/://g')
+# 	for t in $TAPS; do
+# 		sudo ip link set $t nomaster
+# 		sudo ip link del $t
+# 	done
+# 	sudo nmcli connection down bridge-br0
+# 	sudo nmcli connection del bridge-slave-$HOST_NET
+# 	sudo nmcli connection del bridge-br0
+# 	sudo nmcli connection up "Wired connection 1"
+# 	sudo ip link del dev br0
+# fi
+
+# sudo nmcli connection show
