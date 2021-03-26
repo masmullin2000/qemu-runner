@@ -1,0 +1,40 @@
+#!/bin/bash
+
+IFACE=enp8s0
+
+if [[ $1 == "up" ]]; then
+	shift
+	ip link add veth-ns type veth peer name veth-host
+	ip netns add vnet-ns
+	ip link set veth-ns netns vnet-ns
+	ip -n vnet-ns a add 192.168.1.2/24 dev veth-ns
+	ip -n vnet-ns link set veth-ns up
+	ip -n vnet-ns link set lo up
+
+	ip a add 192.168.1.1/24 dev veth-host
+	ip link set veth-host up
+
+	if [[ $1 == "br" ]]; then
+		ip -n vnet-ns link add name br0 type bridge
+		ip -n vnet-ns link set dev br0 up
+		ip -n vnet-ns link set dev veth-ns master br0
+		ip -n vnet-ns addr add 192.168.1.2/24 dev br0
+		ip -n vnet-ns route add default via 192.168.1.1 dev br0
+	else
+		echo ok
+		ip -n vnet-ns route add default via 192.168.1.1 dev veth-ns
+		#ip route add 192.168.1.0/24 dev veth-host
+	fi
+
+	echo 1 > /proc/sys/net/ipv4/ip_forward	
+	iptables -t nat -A POSTROUTING -s 192.168.1.0/255.255.255.0 -o $IFACE -j MASQUERADE
+	iptables -A FORWARD -i $IFACE -o veth-host -j ACCEPT
+	iptables -A FORWARD -o $IFACE -i veth-host -j ACCEPT
+else
+	ip -n vnet-ns link del veth-ns
+	ip netns del vnet-ns
+	iptables -t nat -F
+	iptables -P FORWARD DROP
+	iptables -F FORWARD
+fi
+
