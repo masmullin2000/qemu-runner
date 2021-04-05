@@ -1,38 +1,113 @@
 #!/bin/bash
 
-IFACE=enp8s0
+IFACE=$(ip link | awk '{ print $2; }' | grep en | sed 's/://g')
+IDX=$(ip link | awk '{ print $2; }' | grep veth | sed 's/://g' | sed 's/@.*//g' | wc | awk '{ print $1; }')
+UNAME=""
+CMD=""
+POST=""
+BR=0
 
-if [[ $1 == "up" ]]; then
+NS_PREF=vnet-ns
+VETH_HOST_PREF=veth-host
+VETH_NS_PREF=veth-ns
+
+while [ ! -z "$1" ]
+do
+	case "$1" in
+		-n|--name)
+			POST=$2
+			shift
+			;;
+		-e|--enter)
+			if [[ -z $2 ]]; then
+				echo "No user name given"
+				exit 1
+			fi
+
+			UNAME=$2
+			VALID=$(cat /etc/passwd | grep $UNAME | awk 'BEGIN { FS = ":" } ; {print $1}')
+			if [[ $UNAME != $VALID ]]; then
+				echo "Username invalid"
+				exit 1
+			fi
+
+			shift
+			;;
+		-d|--down)
+			CMD="down"
+			;;
+		-u|--up)
+			CMD="up"
+			IDX=$(($IDX+1))
+			;;
+		-br|--bridge)
+			BR=1
+			;;
+		*)
+			echo "Unknown Command"
+			exit
+			;;
+	esac
 	shift
-	ip link add veth-ns type veth peer name veth-host
-	ip netns add vnet-ns
-	ip link set veth-ns netns vnet-ns
-	ip -n vnet-ns a add 192.168.1.2/24 dev veth-ns
-	ip -n vnet-ns link set veth-ns up
-	ip -n vnet-ns link set lo up
+done
 
-	ip a add 192.168.1.1/24 dev veth-host
-	ip link set veth-host up
+if [[ $POST == "" ]]; then
+	POST=$IDX
+fi
 
-	if [[ $1 == "br" ]]; then
-		ip -n vnet-ns link add name br0 type bridge
-		ip -n vnet-ns link set dev br0 up
-		ip -n vnet-ns link set dev veth-ns master br0
-		ip -n vnet-ns addr add 192.168.1.2/24 dev br0
-		ip -n vnet-ns route add default via 192.168.1.1 dev br0
+if [[ $CMD == "up" ]]; then
+	shift
+	NS=$NS_PREF-$POST
+	VETH_HOST=$VETH_HOST_PREF-$POST
+	VETH_NS=$VETH_NS_PREF-$POST
+
+	echo -e "Namespace $NS connected via VETH PAIR $VETH_NS to $VETH_HOST"
+	
+	ip link add $VETH_NS type veth peer name $VETH_HOST
+	
+	ip a add 192.168.$IDX.1/24 dev $VETH_HOST
+	ip link set $VETH_HOST up
+
+	ip netns add $NS
+	ip link set $VETH_NS netns $NS
+	ip -n $NS link set $VETH_NS up
+	ip -n $NS link set lo up
+	
+	if [[ $BR == 1 ]]; then
+		ip -n $NS link add name br0 type bridge
+		ip -n $NS link set dev br0 up
+		ip -n $NS link set dev $VETH_NS master br0
+
+		# not necessary
+		ip -n $NS a add 192.168.$IDX.2/24 dev $VETH_NS
+
+		ip -n $NS addr add 192.168.$IDX.3/24 dev br0
+		ip -n $NS route add default via 192.168.$IDX.1 dev br0
 	else
-		echo ok
-		ip -n vnet-ns route add default via 192.168.1.1 dev veth-ns
-		#ip route add 192.168.1.0/24 dev veth-host
+		ip -n $NS a add 192.168.$IDX.2/24 dev $VETH_NS
+		ip -n $NS route add default via 192.168.$IDX.1 dev $VETH_NS
 	fi
 
 	echo 1 > /proc/sys/net/ipv4/ip_forward	
-	iptables -t nat -A POSTROUTING -s 192.168.1.0/255.255.255.0 -o $IFACE -j MASQUERADE
-	iptables -A FORWARD -i $IFACE -o veth-host -j ACCEPT
-	iptables -A FORWARD -o $IFACE -i veth-host -j ACCEPT
-else
-	ip -n vnet-ns link del veth-ns
-	ip netns del vnet-ns
+	iptables -t nat -A POSTROUTING -s 192.168.$IDX.0/255.255.255.0 -o $IFACE -j MASQUERADE
+	iptables -A FORWARD -i $IFACE -o $VETH_HOST -j ACCEPT
+	iptables -A FORWARD -o $IFACE -i $VETH_HOST -j ACCEPT
+
+	if [[ $UNAME != "" ]]; then
+		echo -e "\n--Entering namespace $NS with username $UNAME--\n"
+		ip netns exec $NS su $UNAME
+		echo -e "\n--Exited namespace $NS--\n"
+	fi
+
+elif [[ $CMD == "down" ]]; then
+	shift
+	IDX=$(($IDX-1))
+
+	NS=$NS_PREF-$POST
+	VETH_HOST=$VETH_HOST_PREF-$POST
+	VETH_NS=$VETH_NS_PREF-$POST
+	ip -n $NS link del $VETH_NS
+	ip netns del $NS
 	iptables -t nat -F
 	iptables -P FORWARD DROP
 	iptables -F FORWARD
