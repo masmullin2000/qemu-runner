@@ -85,6 +85,7 @@ if [[ "$RUN_AS" == "server" ]]; then
 	for i in {0..10}; do
 		if [[ ! -e /tmp/firecracker$i.socket ]]; then
 			rm -rf /tmp/firecracker$i.socket
+			echo -e "Socket: /tmp/firecracker$i.socket"
 			$FIRECRACKER --api-sock /tmp/firecracker$i.socket
 			rm -rf /tmp/firecracker$i.socket
 			exit 0

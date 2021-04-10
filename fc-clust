@@ -4,8 +4,8 @@ FC=/home/mm/bin/fc
 
 pkill firecracker
 sleep 1
-rm /tmp/firecracker*.socket
-sudo umount fireclust/o*
+rm /tmp/firecracker*.socket 2> /dev/null
+sudo umount fireclust/o* 2> /dev/null
 rm -rf fireclust
 
 if [[ $1 != "clean" ]]; then
@@ -31,6 +31,6 @@ if [[ $1 != "clean" ]]; then
 	done
 	sleep 60
 	echo "doing nmap"
-	nmap 192.168.0.* -p 22 | grep open -B 4 | grep 192 | grep -vE "\.79$|\.10$|\.46|137$" | awk '{ print $5; }'
+	nmap 192.168.0.* -p 22 | grep open -B 4 | grep 192 | awk '{ print $5; }'
 fi
 
