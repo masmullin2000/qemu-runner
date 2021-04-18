@@ -48,25 +48,7 @@ while [ ! -z "$1" ]
 do
 	case "$1" in
 		-a|--adddrv)
-			case $DRVCNT in
-				0)
-					echo "0"
-					cmd+="-hdb $2 "
-					DRVCNT=$(($DRVCNT + 1))
-					;;
-				1)
-					echo "1"
-					cmd+="-hdc $2 "
-					DRVCNT=$(($DRVCNT + 1))
-					;;
-				2)
-					echo "2"
-					cmd+="-hdd $2 "
-					DRVCNT=$(($DRVCNT + 1))
-					;;
-				*)
-					echo "Subsequent Drives currently not supported"
-			esac
+			cmd+="-drive file=$2,if=virtio "
 			shift
 			;;
 		-cd|--cdrom)
@@ -149,10 +131,14 @@ do
 			#cmd+="-net nic -net bridge,br=br0 "
 			#cmd+="-device virtio-net-pci "
 			make_tap
-			E=$(printf '%02x' $tap_ctr)
+			E=$(printf '%02X' $tap_ctr)
 			echo $E
+			IPADD=$(ip a show br0 | grep "inet " | awk '{ print $2; }' | sed 's/\/.*$//g' | sed "s/\.[^.]*$//")
+			IPADD=$(printf '%02X:' ${IPADD//./ })
+			IPADD+=$E
+			echo $IPADD
 			cmd+="-netdev type=tap,id=net$tap_ctr,ifname=tap$tap_ctr,script=no,downscript=no "
-			cmd+="-device virtio-net-pci,netdev=net$tap_ctr,mac=AA:BB:00:00:00:$E  "
+			cmd+="-device virtio-net-pci,netdev=net$tap_ctr,mac=AA:BB:$IPADD "
 			
 			#shift
 			
@@ -175,7 +161,7 @@ do
 			FAKE=1
 			;;
 		*)
-			cmd+="-hda $1 "
+			cmd+="-drive file=$1,if=virtio "
 			;;
 	esac
 	shift
