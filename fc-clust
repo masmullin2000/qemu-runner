@@ -2,15 +2,17 @@
 
 FC=/home/mm/bin/fc
 
-pkill firecracker
-sleep 1
-rm /tmp/firecracker*.socket 2> /dev/null
-sudo umount fireclust/o* 2> /dev/null
-rm -rf fireclust
-
 BASE=""
 KERNEL=~/code/linux/vmlinux
 AMT=3
+
+usage() {
+	echo -e "fc-clust [options]"
+	echo -e "\t-r|--root: root partition to be used (eg root.ext4)"
+	echo -e "\t-k|--kernel: Kernel to be used (default $KERNEL)"
+	echo -e "\t-n|--count: number of virtual machines to be run (default $AMT)"
+	echo -e "\t-c|--clean: clean up any running cluster"
+}
 
 while [[ ! -z $1 ]]; do
 	case $1 in
@@ -29,6 +31,10 @@ while [[ ! -z $1 ]]; do
 		-c|--clean)
 			CLEAN="yes"
 			;;
+		-h|--help)
+			usage
+			exit
+			;;
 		*)
 			echo "Unknown Command"
 			exit
@@ -36,9 +42,15 @@ while [[ ! -z $1 ]]; do
 	shift
 done
 
+pkill firecracker
+sleep 1
+rm /tmp/firecracker*.socket 2> /dev/null
+sudo umount fireclust/o* 2> /dev/null
+rm -rf fireclust
+
 if [[ $CLEAN != "yes" && $BASE != "" ]]; then
 	for (( i=0; i<$AMT; i++)); do
-	 	$FC server &
+	 	$FC &
 	 	sleep 1
 	done
 

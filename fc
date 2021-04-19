@@ -71,11 +71,8 @@ do
 			shift
 			;;
 		*)
-			if [[ "$kernel_path" == "" ]]; then
-				kernel_path=$1
-			else
-				rootfs_path=$1
-			fi
+			echo "Unknown Command $1"
+			exit
 			;;
 	esac
 	shift

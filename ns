@@ -11,6 +11,16 @@ NS_PREF=vnet-ns
 VETH_HOST_PREF=veth-host
 VETH_NS_PREF=veth-ns
 
+usage() {
+	echo -e "ns [options]:"
+	echo -e "\t-n|--name: name given to namespace and veth pair"
+	echo -e "\t-e|--enter: enter into the namespace with supplied username"
+	echo -e "\t-d|--down: tear down the namespace"
+	echo -e "\t-u|--up: setup the namespace"
+	echo -e "\t-br|--bridge: Inside the namespace, setup bridge networking (for vms)"
+	echo -e "\t-h|--help: This message"
+}
+
 while [ ! -z "$1" ]
 do
 	case "$1" in
@@ -42,6 +52,10 @@ do
 			;;
 		-br|--bridge)
 			BR=1
+			;;
+		-h|--help)
+			usage
+			exit 1
 			;;
 		*)
 			echo "Unknown Command"
