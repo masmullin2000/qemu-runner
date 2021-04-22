@@ -5,12 +5,16 @@ FC=/home/mm/bin/fc
 BASE=""
 KERNEL=~/code/linux/vmlinux
 AMT=3
+MEM=4
+CPU=2
 
 usage() {
 	echo -e "fc-clust [options]"
 	echo -e "\t-r|--root: root partition to be used (eg root.ext4)"
 	echo -e "\t-k|--kernel: Kernel to be used (default $KERNEL)"
 	echo -e "\t-n|--count: number of virtual machines to be run (default $AMT)"
+	echo -e "\t-m|--memory: amount of memory for each virtual machine"
+	echo -e "\t-j|--cores: amount of cores for each virtual machine"
 	echo -e "\t-c|--clean: clean up any running cluster"
 }
 
@@ -34,6 +38,14 @@ while [[ ! -z $1 ]]; do
 		-h|--help)
 			usage
 			exit
+			;;
+		-m|--memory)
+			MEM=$2
+			shift
+			;;
+		-j|--cores)
+			CPU=$2
+			shift
 			;;
 		*)
 			echo "Unknown Command"
@@ -65,11 +77,8 @@ if [[ $CLEAN != "yes" && $BASE != "" ]]; then
 	done
 
 	for (( i=0; i<$AMT; i++)); do
-		$FC -c -r fireclust/o$i/OS.ext4 -k $KERNEL -m 4 -j 2 -n --socket $i &
+		$FC -c -r fireclust/o$i/OS.ext4 -k $KERNEL -m $MEM -j $CPU -n --socket $i &
 		sleep 1
 	done
-	sleep 60
-	echo "doing nmap"
-	nmap 192.168.0.* -p 22 | grep open -B 4 | grep 192 | awk '{ print $5; }'
 fi
 

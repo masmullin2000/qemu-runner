@@ -1,7 +1,5 @@
 #!/bin/bash
 
-ID=$(id | awk '{ print $1; }' | cut -b 5-8 | sed 's/[^0-9]*//g')
-
 usage() {
 	echo -e "mk-firecracker -s <SIZE> -i <QCOW2_IMG> -p <ROOT_PART>"
 	echo -e "options:"
@@ -37,6 +35,7 @@ while [[ ! -z "$1" ]]; do
 	shift
 done
 
+ID=$(id | awk '{ print $1; }' | cut -b 5-8 | sed 's/[^0-9]*//g')
 if [[ $ID != "0" ]]; then
 	echo -e "Error: Must be root"
 	exit 1

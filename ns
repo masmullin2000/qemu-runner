@@ -1,11 +1,12 @@
 #!/bin/bash
 
-IFACE=$(ip link | awk '{ print $2; }' | grep en | sed 's/://g')
+#IFACE=$(ip link | awk '{ print $2; }' | grep br0 | sed 's/://g')
 IDX=$(ip link | awk '{ print $2; }' | grep veth | sed 's/://g' | sed 's/@.*//g' | wc | awk '{ print $1; }')
 UNAME=""
 CMD=""
 POST=""
 BR=0
+IFACE=""
 
 NS_PREF=vnet-ns
 VETH_HOST_PREF=veth-host
@@ -17,6 +18,7 @@ usage() {
 	echo -e "\t-e|--enter: enter into the namespace with supplied username"
 	echo -e "\t-d|--down: tear down the namespace"
 	echo -e "\t-u|--up: setup the namespace"
+	echo -e "\t-i|--interface: external interface"
 	echo -e "\t-br|--bridge: Inside the namespace, setup bridge networking (for vms)"
 	echo -e "\t-h|--help: This message"
 }
@@ -57,6 +59,10 @@ do
 			usage
 			exit 1
 			;;
+		-i|--interface)
+			IFACE=$2
+			shift
+			;;
 		*)
 			echo "Unknown Command"
 			exit
@@ -64,6 +70,17 @@ do
 	esac
 	shift
 done
+
+ID=$(id | awk '{ print $1; }' | cut -b 5-8 | sed 's/[^0-9]*//g')
+if [[ $ID != "0" ]]; then
+	echo -e "Error: Must be root"
+	exit 1
+fi
+
+if [[ $IFACE == "" && $CMD == "up" ]]; then
+	echo -e "Error: External Interface Must be Set"
+	exit 1
+fi
 
 if [[ $POST == "" ]]; then
 	POST=$IDX
@@ -97,9 +114,11 @@ if [[ $CMD == "up" ]]; then
 
 		ip -n $NS addr add 192.168.$IDX.3/24 dev br0
 		ip -n $NS route add default via 192.168.$IDX.1 dev br0
+		ip -n $NS route del 192.168.$IDX.0/24
 	else
 		ip -n $NS a add 192.168.$IDX.2/24 dev $VETH_NS
 		ip -n $NS route add default via 192.168.$IDX.1 dev $VETH_NS
+		ip -n $NS route del 192.168.$IDX.0/24
 	fi
 
 	echo 1 > /proc/sys/net/ipv4/ip_forward	

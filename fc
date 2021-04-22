@@ -102,11 +102,9 @@ if [[ "$RUN_AS" == "client" ]]; then
 
 	if [[ -n "$TAP_DEV" ]]; then
 		E=$(printf '%02X' $tap_ctr)
-		echo $E
 		IPADD=$(ip a show br0 | grep "inet " | awk '{ print $2; }' | sed 's/\/.*$//g' | sed "s/\.[^.]*$//")
 		IPADD=$(printf '%02X:' ${IPADD//./ })
 		IPADD+=$E
-		echo $IPADD
   		curl --unix-socket $SOCKET -i     \
 	 	-X PUT 'http://localhost/network-interfaces/eth0' \
 		-H 'Accept: application/json'                     \
