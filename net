@@ -23,11 +23,7 @@ if [[ $1 == "up" ]]; then
 	sudo ip addr add $BR_IP/24 dev br0
 	sudo ip route add default via $GW_IP dev br0
 
-	# sudo ip tuntap add dev tap0 mode tap
-	# sudo ip link set dev tap0 up
-	# sudo ip link set tap0 master br0
-	#sudo ip link set dev $HOST_NET down
-	#sudo ip link set dev $HOST_NET up
+	sudo iptables -A FORWARD -p all -i br0 -j ACCEPT
 
 elif [[ $1 == "down" ]]; then
 	shift
@@ -43,30 +39,3 @@ elif [[ $1 == "down" ]]; then
 elif [[ $1 == "ct" ]]; then
 	clean_tap
 fi
-
-# HOST_NET=$(ip link | grep enp | awk '{ print $2; }' | sed 's/://g')
-# if [[ $1 == "up" ]]; then
-# 	sudo nmcli connection add type bridge ifname br0 stp no
-# 	sudo nmcli connection add type bridge-slave ifname $HOST_NET master br0
-# 	sudo nmcli connection down "Wired connection 1"
-# 	sleep 2
-# 	sudo nmcli connection up bridge-br0
-
-# 	# sudo ip tuntap add dev tap0 mode tap
-#  	# sudo ip link set dev tap0 up
-#  	# sudo ip link set tap0 master br0
-
-# elif [[ $1 == "down" ]]; then
-# 	TAPS=$(ip a | grep tap | awk '{ print $2; }' | sed 's/://g')
-# 	for t in $TAPS; do
-# 		sudo ip link set $t nomaster
-# 		sudo ip link del $t
-# 	done
-# 	sudo nmcli connection down bridge-br0
-# 	sudo nmcli connection del bridge-slave-$HOST_NET
-# 	sudo nmcli connection del bridge-br0
-# 	sudo nmcli connection up "Wired connection 1"
-# 	sudo ip link del dev br0
-# fi
-
-# sudo nmcli connection show
