@@ -4,9 +4,12 @@ RAM=8G
 SMP=8
 FOLDER_AMT=0
 
-SPICE="-device virtio-serial-pci -device virtserialport,chardev=spicechannel0,name=com.redhat.spice.0 "
-SPICE+="-chardev spicevmc,id=spicechannel0,name=vdagent -spice unix,addr=/tmp/vm_spice.socket,disable-ticketing "
-SPICE_CMD=""
+SPICE_PORT_NET="port="
+SPICE_PORT_UNX="unix,addr=/tmp/vm_spice.socket"
+SPICE="-vga qxl -device virtio-serial-pci -spice "
+SPICE_POST=",disable-ticketing -device virtserialport,"
+SPICE_POST+="chardev=spicechannel0,name=com.redhat.spice.0 "
+SPICE_POST+="-chardev spicevmc,id=spicechannel0,name=vdagent "
 
 DRVCNT=0
 PAUSE=0
@@ -14,11 +17,13 @@ FAKE=0
 DAEMON=0
 UEFI=0
 JAIL=0
+DSPLY=1
 
 APP=qemu-system-x86_64
 #APP=kvm
 
-cmd="$APP -cpu host -vga virtio -enable-kvm -device intel-hda -device hda-duplex -usb -device usb-tablet "
+cmd="$APP -cpu host -enable-kvm -device intel-hda -device hda-duplex "
+cmd+="-usb -device usb-tablet "
 
 cmdline_pre="\"console=ttyS0 earlyprintk=serial "
 cmdline_post=" rw nokaslr \" "
@@ -28,6 +33,11 @@ net_cmd=""
 port_cmd=""
 ssh_cmd=""
 tap_ctr=$((0))
+
+E=$(printf '%02X' $tap_ctr)
+IPADD=$(ip a show br0 | grep "inet " | awk '{ print $2; }' | sed 's/\/.*$//g' | sed "s/\.[^.]*$//")
+IPADD=$(printf '%02X:' ${IPADD//./ })
+#IPADD+=$E
 
 make_tap() {
 	TAPS=$(ip a | grep tap | awk '{ print $2; }' | sed 's/://g')
@@ -42,6 +52,8 @@ make_tap() {
 	sudo ip tuntap add dev "tap$tap_ctr" mode tap
 	sudo ip link set dev "tap$tap_ctr" up
 	sudo ip link set "tap$tap_ctr" master br0
+	E=$(printf '%02X' $tap_ctr)
+	IPADD+=$E
 }
 
 while [ ! -z "$1" ]
@@ -90,6 +102,7 @@ do
 			;;
 		-n|--nodisplay)
 			cmd+="-display none "
+			DSPLY=0
 			;;
 		-d|--debug)
 			cmd+="-s "
@@ -115,8 +128,19 @@ do
 			;;
 		-v|--viewer)
 			PAUSE=1
+			SPICE+="$SPICE_PORT_UNX"
+			SPICE+="$SPICE_POST"
 			cmd+="$SPICE"
+			cmd+="-display egl-headless,gl=on "
 			SPICE_CMD="Connect to Viewer via Spice\nremote-viewer spice+unix:///tmp/vm_spice.socket"
+			;;
+		-vn|--net-viewer)
+			SPICE+="$SPICE_PORT_NET"$2
+			SPICE+="$SPICE_POST"
+			cmd+="$SPICE"
+			cmd+="-display egl-headless,gl=on "
+			SPICE_CMD="Connect to Viewer via Spice\nremote-viewer spice+unix:///tmp/vm_spice.socket"
+			shift
 			;;
 		-x|--daemon)
 			DAEMON=1
@@ -128,20 +152,24 @@ do
 			cmd+="-drive file=uefi/OVMF_VARS.fd,if=pflash,format=raw,unit=1 "
 			;;
 		--bridge)
-			#cmd+="-net nic -net bridge,br=br0 "
-			#cmd+="-device virtio-net-pci "
 			make_tap
-			E=$(printf '%02X' $tap_ctr)
-			echo $E
+			# E=$(printf '%02X' $tap_ctr)
+			# IPADD=$(ip a show br0 | grep "inet " | awk '{ print $2; }' | sed 's/\/.*$//g' | sed "s/\.[^.]*$//")
+			# IPADD=$(printf '%02X:' ${IPADD//./ })
+			# IPADD+=$E
+			cmd+="-netdev type=tap,id=net$tap_ctr,ifname=tap$tap_ctr,script=no,downscript=no "
+			cmd+="-device virtio-net-pci,netdev=net$tap_ctr,mac=AA:BB:$IPADD "
+			;;
+		--brip)
+			make_tap
+			E=$(printf '%02X' $2)
 			IPADD=$(ip a show br0 | grep "inet " | awk '{ print $2; }' | sed 's/\/.*$//g' | sed "s/\.[^.]*$//")
 			IPADD=$(printf '%02X:' ${IPADD//./ })
 			IPADD+=$E
-			echo $IPADD
 			cmd+="-netdev type=tap,id=net$tap_ctr,ifname=tap$tap_ctr,script=no,downscript=no "
 			cmd+="-device virtio-net-pci,netdev=net$tap_ctr,mac=AA:BB:$IPADD "
-			
-			#shift
-			
+
+			shift
 			;;
 		--jail)
 			JAIL=1
@@ -166,6 +194,10 @@ do
 	esac
 	shift
 done
+
+if [[ $DSPLY -ne 0 && -z $SPICE_CMD ]]; then
+	cmd+="-vga virtio -display gtk,grab-on-hover=on "
+fi
 
 if [ -z "$cmdline" ]
 then
@@ -223,14 +255,14 @@ then
 	echo "==========================================================================="
 fi
 
-if [ $PAUSE -eq 1 ]
-then
-	sleep 3
-fi
+# if [ $PAUSE -eq 1 ]
+# then
+# 	sleep 3
+# fi
 
 if [ $FAKE -eq 0 ]
 then
-	echo $cmd
+	#echo $cmd
 	eval $cmd
 else
 	echo $cmd
