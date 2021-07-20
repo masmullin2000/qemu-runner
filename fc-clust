@@ -62,7 +62,7 @@ rm -rf fireclust
 
 if [[ $CLEAN != "yes" && $BASE != "" ]]; then
 	for (( i=0; i<$AMT; i++)); do
-	 	$FC &
+	 	$FC --server &
 	 	sleep 1
 	done
 

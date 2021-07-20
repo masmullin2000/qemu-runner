@@ -7,6 +7,7 @@ CMD=""
 POST=""
 BR=0
 IFACE=""
+EXIT=0
 
 NS_PREF=vnet-ns
 VETH_HOST_PREF=veth-host
@@ -44,6 +45,9 @@ do
 			fi
 
 			shift
+			;;
+		-x|--exit)
+			EXIT=1
 			;;
 		-d|--down)
 			CMD="down"
@@ -121,7 +125,8 @@ if [[ $CMD == "up" ]]; then
 		ip -n $NS route del 192.168.$IDX.0/24
 	fi
 
-	echo 1 > /proc/sys/net/ipv4/ip_forward	
+	echo 1 > /proc/sys/net/ipv4/ip_forward
+	iptables -t nat -A PREROUTING -p tcp --dport 8080 -j DNAT --to-destination 192.168.$IDX.240:80
 	iptables -t nat -A POSTROUTING -s 192.168.$IDX.0/255.255.255.0 -o $IFACE -j MASQUERADE
 	iptables -A FORWARD -i $IFACE -o $VETH_HOST -j ACCEPT
 	iptables -A FORWARD -o $IFACE -i $VETH_HOST -j ACCEPT
@@ -130,6 +135,9 @@ if [[ $CMD == "up" ]]; then
 		echo -e "\n--Entering namespace $NS with username $UNAME--\n"
 		ip netns exec $NS su $UNAME
 		echo -e "\n--Exited namespace $NS--\n"
+	if [[ $EXIT == 1 ]]; then
+		ns -d -n $POST
+	fi
 	fi
 
 elif [[ $CMD == "down" ]]; then

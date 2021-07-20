@@ -2,7 +2,7 @@
 
 set -e
 
-RUN_AS="server"
+RUN_AS="both"
 CORES=2
 THREAD="false"
 RAM=1024
@@ -10,8 +10,10 @@ kernel_path=""
 rootfs_path=""
 tap_ctr=$((0))
 TAP_DEV=""
-SOCKET="/tmp/firecracker0.socket"
+SOCKET="0"
 FIRECRACKER="firecracker"
+NETWORK="no"
+CMDLN=""
 
 make_tap() {
 	TAPS=$(ip a | grep tap | awk '{ print $2; }' | sed 's/://g')
@@ -30,27 +32,32 @@ make_tap() {
 
 while [ ! -z "$1" ]
 do
+	CMDLN+="$1 "
 	case "$1" in
 		-c|--client)
 			RUN_AS="client"
 			;;
 		-j|--cores)
 			CORES="$2"
+			CMDLN+="$2 "
 			shift
 			;;
 		-t|--thread)
 			THREAD="true"
 			;;
 		-m|--ram)
-			RAM=$((1024*$2))
+			RAM=$2
+			CMDLN+="$2 "
 			shift
 			;;
 		-k|--kernel)
 			kernel_path=$2
+			CMDLN+="$2 "
 			shift
 			;;
 		-r|--root)
 			rootfs_path=$2
+			CMDLN+="$2 "
 			shift
 			;;
 		-int|--interactive)
@@ -58,17 +65,19 @@ do
 			;;
 		-i|--initramfs)
 			INITRAMFS=$2
+			CMDLN+="$2 "
 			shift
 			;;
 		-n|--network)
-			#TAP_DEV="tap"
-			#TAP_DEV+=$2
-			make_tap
-			TAP_DEV="tap$tap_ctr"
+			NETWORK="yes"
 			;;
 		-s|--socket)
-			SOCKET="/tmp/firecracker$2.socket"
+			SOCKET=$2
+			CMDLN+="$2 "
 			shift
+			;;
+		--server)
+			RUN_AS="server"
 			;;
 		*)
 			echo "Unknown Command $1"
@@ -77,6 +86,19 @@ do
 	esac
 	shift
 done
+
+if [[ "$RUN_AS" == "both" ]]; then
+	SOCKET="/tmp/firecracker$SOCKET.socket"
+	/bin/bash -c "sleep 1 && $0 -c $CMDLN" &
+	rm -f $SOCKET
+	
+	if [[ "$INTERACTIVE" == "yes" ]]; then
+		$FIRECRACKER --api-sock $SOCKET
+	else
+		$FIRECRACKER --api-sock $SOCKET &
+	fi
+	exit 0
+fi
 
 if [[ "$RUN_AS" == "server" ]]; then
 	for i in {0..10}; do
@@ -91,6 +113,7 @@ if [[ "$RUN_AS" == "server" ]]; then
 fi
 
 if [[ "$RUN_AS" == "client" ]]; then
+	SOCKET="/tmp/firecracker$SOCKET.socket"
 	K_STR="{ \"kernel_image_path\": \"${kernel_path}\""
 	if [[ "$INTERACTIVE" == "yes" ]]; then
 		K_STR+=",\"boot_args\": \"console=ttyS0 reboot=k panic=1\""
@@ -100,7 +123,10 @@ if [[ "$RUN_AS" == "client" ]]; then
 	fi
 	K_STR+=" }"
 
-	if [[ -n "$TAP_DEV" ]]; then
+	if [[ "$NETWORK" == "yes" ]]; then
+		make_tap
+		TAP_DEV="tap$tap_ctr"
+
 		E=$(printf '%02X' $tap_ctr)
 		IPADD=$(ip a show br0 | grep "inet " | awk '{ print $2; }' | sed 's/\/.*$//g' | sed "s/\.[^.]*$//")
 		IPADD=$(printf '%02X:' ${IPADD//./ })
@@ -133,6 +159,7 @@ if [[ "$RUN_AS" == "client" ]]; then
 			\"is_read_only\": false
 		}"
 
+	RAM=$((1024*$RAM))
 	curl --unix-socket $SOCKET -i  \
 		-X PUT 'http://localhost/machine-config'   \
 		-H 'Accept: application/json'              \
@@ -151,3 +178,4 @@ if [[ "$RUN_AS" == "client" ]]; then
 			\"action_type\": \"InstanceStart\"
 		}"
 fi
+
