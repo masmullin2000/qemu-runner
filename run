@@ -34,11 +34,6 @@ port_cmd=""
 ssh_cmd=""
 tap_ctr=$((0))
 
-E=$(printf '%02X' $tap_ctr)
-IPADD=$(ip a show br0 | grep "inet " | awk '{ print $2; }' | sed 's/\/.*$//g' | sed "s/\.[^.]*$//")
-IPADD=$(printf '%02X:' ${IPADD//./ })
-#IPADD+=$E
-
 make_tap() {
 	TAPS=$(ip a | grep tap | awk '{ print $2; }' | sed 's/://g')
 	for t in $TAPS; do
@@ -81,15 +76,6 @@ do
 		-c|--cmdline)
 			cmdline+=$2
 			shift
-			;;
-		-fs|--fedora-server)
-			kernel_cmd+="-kernel fed_serv/vmlinuz "
-			cmdline+="root=/dev/mapper/fedora_fedora-root ro rd.lvm.lv=fedora_fedora/root lsm=selinux,bpf "
-			cmd+="-initrd fed_serv/initramfs.img "
-			;;
-		-fd|--fedora-desktop)
-			cmdline+="root=/dev/mapper/fedora_localhost--live-root ro rd.lvm.lv=fedora_localhost-live/root "
-			cmd+="-initrd fedora-desktop/initramfs.img "
 			;;
 		-p|--port)
 			port_cmd+=",hostfwd=tcp::$2-:$3"
@@ -139,7 +125,7 @@ do
 			SPICE+="$SPICE_POST"
 			cmd+="$SPICE"
 			cmd+="-display egl-headless,gl=on "
-			SPICE_CMD="Connect to Viewer via Spice\nremote-viewer spice+unix:///tmp/vm_spice.socket"
+			SPICE_CMD="Connect to Viewer via Spice\nremote-viewer spice://<IP_ADD>:$2"
 			shift
 			;;
 		-x|--daemon)
@@ -153,10 +139,10 @@ do
 			;;
 		--bridge)
 			make_tap
-			# E=$(printf '%02X' $tap_ctr)
-			# IPADD=$(ip a show br0 | grep "inet " | awk '{ print $2; }' | sed 's/\/.*$//g' | sed "s/\.[^.]*$//")
-			# IPADD=$(printf '%02X:' ${IPADD//./ })
-			# IPADD+=$E
+			E=$(printf '%02X' $tap_ctr)
+			IPADD=$(ip a show br0 | grep "inet " | awk '{ print $2; }' | sed 's/\/.*$//g' | sed "s/\.[^.]*$//")
+			IPADD=$(printf '%02X:' ${IPADD//./ })
+			IPADD+=$E
 			cmd+="-netdev type=tap,id=net$tap_ctr,ifname=tap$tap_ctr,script=no,downscript=no "
 			cmd+="-device virtio-net-pci,netdev=net$tap_ctr,mac=AA:BB:$IPADD "
 			;;
@@ -173,17 +159,6 @@ do
 			;;
 		--jail)
 			JAIL=1
-			;;
-		--syzrepro)
-			cmd+="-no-reboot "
-			cmdline+="oops=panic nmi_watchdog=panic panic_on_warn=1 panic=1 "
-			cmdline+="ftrace_dump_on_oops=orig_cpu rodata=n vsyscall=native "
-			cmdline+="net.ifnames=0 biosdevname=0 kvm-intel.nested=1 "
-			cmdline+="kvm-intel.unrestricted_guest=1 kvm-intel.vmm_exclusive=1 "
-			cmdline+="kvm-intel.fasteoi=1 kvm-intel.ept=1 kvm-intel.flexpriority=1 "
-			cmdline+="kvm-intel.vpid=1 kvm-intel.emulate_invalid_guest_state=1 "
-			cmdline+="kvm-intel.eptad=1 kvm-intel.enable_shadow_vmcs=1 kvm-intel.pml=1 kvm-intel.enable_apicv=1 "
-			cmdline_post=" rw\" "
 			;;
 		--fake)
 			FAKE=1
@@ -262,7 +237,6 @@ fi
 
 if [ $FAKE -eq 0 ]
 then
-	#echo $cmd
 	eval $cmd
 else
 	echo $cmd
