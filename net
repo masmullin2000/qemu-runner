@@ -27,11 +27,7 @@ if [[ $1 == "up" ]]; then
 
 elif [[ $1 == "down" ]]; then
 	shift
-	TAPS=$(ip a | grep tap | awk '{ print $2; }' | sed 's/://g')
-	for t in $TAPS; do
-		sudo ip link set $t nomaster
-		sudo ip link del $t
-	done
+    clean_tap
 	sudo ip link set dev $HOST_NET nomaster
 	sudo ip link del dev br0
 	sudo ip link set dev $HOST_NET down

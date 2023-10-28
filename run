@@ -5,9 +5,9 @@ SMP=8
 FOLDER_AMT=0
 
 SPICE_PORT_NET="port="
-SPICE_PORT_UNX="unix,addr=/tmp/vm_spice.socket"
+SPICE_PORT_UNX="unix=on,addr=/tmp/vm_spice.socket"
 SPICE="-vga qxl -device virtio-serial-pci -spice "
-SPICE_POST=",disable-ticketing -device virtserialport,"
+SPICE_POST=",disable-ticketing=on -device virtserialport,"
 SPICE_POST+="chardev=spicechannel0,name=com.redhat.spice.0 "
 SPICE_POST+="-chardev spicevmc,id=spicechannel0,name=vdagent "
 
@@ -20,7 +20,6 @@ JAIL=0
 DSPLY=1
 
 APP=qemu-system-x86_64
-#APP=kvm
 
 cmd="$APP -cpu host -enable-kvm -device intel-hda -device hda-duplex "
 cmd+="-usb -device usb-tablet "
@@ -47,6 +46,7 @@ make_tap() {
 	sudo ip tuntap add dev "tap$tap_ctr" mode tap
 	sudo ip link set dev "tap$tap_ctr" up
 	sudo ip link set "tap$tap_ctr" master br0
+    echo "made tap tap$tap_ctr"
 	E=$(printf '%02X' $tap_ctr)
 	IPADD+=$E
 }
@@ -171,7 +171,7 @@ do
 done
 
 if [[ $DSPLY -ne 0 && -z $SPICE_CMD ]]; then
-	cmd+="-vga virtio -display gtk,grab-on-hover=on "
+	cmd+="-device virtio-vga-gl -display gtk,gl=on,grab-on-hover=on "
 fi
 
 if [ -z "$cmdline" ]
