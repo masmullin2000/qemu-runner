@@ -181,7 +181,7 @@ fi
 
 if [ $DAEMON -eq 0 ]
 then
-	cmd+="-serial stdio "
+	cmd+="-monitor stdio "
 fi	
 
 fwd_cmd=$ssh_cmd

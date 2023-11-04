@@ -1,9 +1,38 @@
 #!/bin/bash
 
-HOST_NET=$(ip link | awk '{ print $2; }' | grep en | sed 's/://g')
+LINK="en"
 NETWORK="192.168.0."
-BR_IP=$NETWORK+"3"
-GW_IP=$NETWORK+"1"
+BR="26"
+GW="1"
+
+DIR="$1"
+shift
+
+while [[ ! -z "$2" ]]; do
+    case "$2" in
+        -l|--link)
+            LINK="$3"
+            shift
+            ;;
+        -n|--network)
+            NETWORK="$3"
+            shift
+            ;;
+        -br|--bridge_ip)
+            BR="$3"
+            shift
+            ;;
+        -gw|--gateway_ip)
+            GW="$3"
+            shift
+            ;;
+    esac
+    shift
+done
+
+HOST_NET=$(ip link | awk '{ print $2; }' | grep en | sed 's/://g')
+BR_IP="$NETWORK"+"$BR"
+GW_IP="$NETWORK"+"$GW"
 
 clean_tap() {
 	TAPS=$(ip a | grep tap | awk '{ print $2; }' | sed 's/://g')
@@ -13,7 +42,8 @@ clean_tap() {
 	done
 }
 
-if [[ $1 == "up" ]]; then
+
+if [[ "$DIR" == "up" ]]; then
 	shift
 	sudo ip link add name br0 type bridge
 	sudo ip link set dev br0 up
@@ -25,13 +55,23 @@ if [[ $1 == "up" ]]; then
 
 	sudo iptables -A FORWARD -p all -i br0 -j ACCEPT
 
-elif [[ $1 == "down" ]]; then
+elif [[ "$DIR" == "down" ]]; then
 	shift
     clean_tap
 	sudo ip link set dev $HOST_NET nomaster
 	sudo ip link del dev br0
 	sudo ip link set dev $HOST_NET down
 	sudo ip link set dev $HOST_NET up
-elif [[ $1 == "ct" ]]; then
+elif [[ "$DIR" == "ct" ]]; then
 	clean_tap
+else
+    echo "Usage: net <up|down> <options>"
+    echo "  options:"
+    echo "    -l|--link: Link to set the bridge on (eg eth0)"
+    echo "    -n|--network: First 3 octets of IP address of br0 (eg 192.168.0.)"
+    echo "                  note the final dot"
+    echo "    -br|--bridge_ip: final octet of br0 (eg 26)"
+    echo "    -gw|--gateway_ip: final octet of the gateway (eg 1)"
+    echo ""
+    echo "example: net up -l enp -n 192.168.0. -br 26 -gw 1"
 fi
