@@ -3,6 +3,7 @@
 RAM=8G
 SMP=8
 FOLDER_AMT=0
+ovmf_loc=./uefi
 
 SPICE_PORT_NET="port="
 SPICE_PORT_UNX="unix=on,addr=/tmp/vm_spice.socket"
@@ -14,7 +15,7 @@ SPICE_POST+="-chardev spicevmc,id=spicechannel0,name=vdagent "
 DRVCNT=0
 PAUSE=0
 FAKE=0
-DAEMON=0
+DAEMON=1
 UEFI=0
 JAIL=0
 DSPLY=1
@@ -38,7 +39,7 @@ make_tap() {
 	for t in $TAPS; do
 		tap="tap$tap_ctr"
 		if [[ $tap == $t ]]; then
-			tap_ctr=$((tap_ctr+1))
+			tap_ctr=$((tap_ctr + 1))
 		else
 			break
 		fi
@@ -46,126 +47,142 @@ make_tap() {
 	sudo ip tuntap add dev "tap$tap_ctr" mode tap
 	sudo ip link set dev "tap$tap_ctr" up
 	sudo ip link set "tap$tap_ctr" master br0
-    echo "made tap tap$tap_ctr"
+	echo "made tap tap$tap_ctr"
 	E=$(printf '%02X' $tap_ctr)
 	IPADD+=$E
 }
 
-while [ ! -z "$1" ]
-do
+while [ ! -z "$1" ]; do
 	case "$1" in
-		-a|--adddrv)
-			cmd+="-drive file=$2,if=virtio "
-			shift
-			;;
-		-cd|--cdrom)
-			cmd+="-boot d -cdrom $2 "
-			shift
-			;;
-		-kl|--kernel-locate)
-			kernel_cmd+="-kernel $2 "
-			shift
-			;;
-		-k|--kernel)
-			kernel_cmd+="-kernel linux/arch/x86/boot/bzImage "
-			;;
-		-i|--init)
-			cmd+="-initrd $2 "
-			shift
-			;;
-		-c|--cmdline)
-			cmdline+=$2
-			shift
-			;;
-		-p|--port)
-			port_cmd+=",hostfwd=tcp::$2-:$3"
-			shift
-			shift
-			;;
-		-s|--ssh)
-			ssh_cmd+=",hostfwd=tcp::$2-:22"
-			shift
-			;;
-		-n|--nodisplay)
-			cmd+="-display none "
-			DSPLY=0
-			;;
-		-d|--debug)
-			cmd+="-s "
-			;;
-		-b|--break)
-			cmd+="-S "
-			;;
-		-r|--ram)
-			RAM="$2"
-			RAM+="G"
-			shift
-			;;
-		-j|--threads)
-			SMP="$2"
-			shift
-			;;
-		-f|--folder)
-			PAUSE=1
-			FOLDER=`realpath $2`
-			cmd+="-virtfs local,path=$FOLDER,mount_tag=host$FOLDER_AMT,security_model=passthrough,id=host$FOLDER_AMT "
-			FOLDER_AMT=$(($FOLDER_AMT + 1))
-			shift
-			;;
-		-v|--viewer)
-			PAUSE=1
-			SPICE+="$SPICE_PORT_UNX"
-			SPICE+="$SPICE_POST"
-			cmd+="$SPICE"
-			cmd+="-display egl-headless,gl=on "
-			SPICE_CMD="Connect to Viewer via Spice\nremote-viewer spice+unix:///tmp/vm_spice.socket"
-			;;
-		-vn|--net-viewer)
-			SPICE+="$SPICE_PORT_NET"$2
-			SPICE+="$SPICE_POST"
-			cmd+="$SPICE"
-			cmd+="-display egl-headless,gl=on "
-			SPICE_CMD="Connect to Viewer via Spice\nremote-viewer spice://<IP_ADD>:$2"
-			shift
-			;;
-		-x|--daemon)
-			DAEMON=1
-			cmd+="-daemonize "
-			;;
-		-u|--uefi)
-			UEFI=1
-			cmd+="-drive file=uefi/OVMF_CODE.fd,if=pflash,format=raw,unit=0,readonly=on "
-			cmd+="-drive file=uefi/OVMF_VARS.fd,if=pflash,format=raw,unit=1 "
-			;;
-		--bridge)
-			make_tap
-			E=$(printf '%02X' $tap_ctr)
-			IPADD=$(ip a show br0 | grep "inet " | awk '{ print $2; }' | sed 's/\/.*$//g' | sed "s/\.[^.]*$//")
-			IPADD=$(printf '%02X:' ${IPADD//./ })
-			IPADD+=$E
-			cmd+="-netdev type=tap,id=net$tap_ctr,ifname=tap$tap_ctr,script=no,downscript=no "
-			cmd+="-device virtio-net-pci,netdev=net$tap_ctr,mac=AA:BB:$IPADD "
-			;;
-		--brip)
-			make_tap
-			E=$(printf '%02X' $2)
-			IPADD=$(ip a show br0 | grep "inet " | awk '{ print $2; }' | sed 's/\/.*$//g' | sed "s/\.[^.]*$//")
-			IPADD=$(printf '%02X:' ${IPADD//./ })
-			IPADD+=$E
-			cmd+="-netdev type=tap,id=net$tap_ctr,ifname=tap$tap_ctr,script=no,downscript=no "
-			cmd+="-device virtio-net-pci,netdev=net$tap_ctr,mac=AA:BB:$IPADD "
+    --add)
+        cmd+=" $2"
+        shift
+        ;;
+    --virt_drv)
+        cmd+="-drive file=$2,format=raw,readonly=on,media=cdrom "
+        shift
+        ;;
+	-a | --adddrv)
+		cmd+="-drive file=$2,if=virtio "
+		shift
+		;;
+	-cd | --cdrom)
+		cmd+="-boot d -cdrom $2 "
+		shift
+		;;
+	-kl | --kernel-locate)
+		kernel_cmd+="-kernel $2 "
+		shift
+		;;
+	-k | --kernel)
+		kernel_cmd+="-kernel linux/arch/x86/boot/bzImage "
+		;;
+	-i | --init)
+		cmd+="-initrd $2 "
+		shift
+		;;
+	-c | --cmdline)
+		cmdline+=$2
+		shift
+		;;
+	-p | --port)
+		port_cmd+=",hostfwd=tcp::$2-:$3"
+		shift
+		shift
+		;;
+	-s | --ssh)
+		ssh_cmd+=",hostfwd=tcp::$2-:22"
+		shift
+		;;
+	-n | --nodisplay)
+		cmd+="-display none "
+		DSPLY=0
+		;;
+	-d | --debug)
+		cmd+="-s "
+		;;
+	-b | --break)
+		cmd+="-S "
+		;;
+	-r | --ram)
+		RAM="$2"
+		RAM+="G"
+		shift
+		;;
+	-j | --threads)
+		SMP="$2"
+		shift
+		;;
+	-f | --folder)
+		PAUSE=1
+		FOLDER=$(realpath $2)
+		cmd+="-virtfs local,path=$FOLDER,mount_tag=host$FOLDER_AMT,security_model=passthrough,id=host$FOLDER_AMT "
+		FOLDER_AMT=$(($FOLDER_AMT + 1))
+		shift
+		;;
+	-v | --viewer)
+		PAUSE=1
+		SPICE+="$SPICE_PORT_UNX"
+		SPICE+="$SPICE_POST"
+		cmd+="$SPICE"
+		cmd+="-display egl-headless,gl=on "
+		SPICE_CMD="Connect to Viewer via Spice\nremote-viewer spice+unix:///tmp/vm_spice.socket"
+		;;
+	-vn | --net-viewer)
+		SPICE+="$SPICE_PORT_NET"$2
+		SPICE+="$SPICE_POST"
+		cmd+="$SPICE"
+		cmd+="-display egl-headless,gl=on "
+		SPICE_CMD="Connect to Viewer via Spice\nremote-viewer spice://<IP_ADD>:$2"
+		shift
+		;;
+	-x | --daemon)
+		DAEMON=0
+		#cmd+="-daemonize "
+		;;
+	--bios)
+		cmd+="-bios $2 "
+		shift
+		;;
+	-u | --uefi)
+		UEFI=1
+		cmd+="-drive file=$ovmf_loc/OVMF_CODE.fd,if=pflash,format=raw,unit=0,readonly=on "
+		cmd+="-drive file=$ovmf_loc/OVMF_VARS.fd,if=pflash,format=raw,unit=1 "
+		;;
+	-uf | --uefi-file)
+		UEFI=1
+		cmd+="-drive file=$2,if=pflash,format=raw,unit=0,readonly=on "
+		shift
+		;;
+	--bridge)
+		make_tap
+		E=$(printf '%02X' $tap_ctr)
+		IPADD=$(ip a show br0 | grep "inet " | awk '{ print $2; }' | sed 's/\/.*$//g' | sed "s/\.[^.]*$//")
+		IPADD=$(printf '%02X:' ${IPADD//./ })
+		IPADD+=$E
+		cmd+="-netdev type=tap,id=net$tap_ctr,ifname=tap$tap_ctr,script=no,downscript=no "
+		cmd+="-device virtio-net-pci,netdev=net$tap_ctr,mac=AA:BB:$IPADD "
+		;;
+	--brip)
+		make_tap
+		E=$(printf '%02X' $2)
+		IPADD=$(ip a show br0 | grep "inet " | awk '{ print $2; }' | sed 's/\/.*$//g' | sed "s/\.[^.]*$//")
+		IPADD=$(printf '%02X:' ${IPADD//./ })
+		IPADD+=$E
+		cmd+="-netdev type=tap,id=net$tap_ctr,ifname=tap$tap_ctr,script=no,downscript=no "
+		cmd+="-device virtio-net-pci,netdev=net$tap_ctr,mac=AA:BB:$IPADD "
 
-			shift
-			;;
-		--jail)
-			JAIL=1
-			;;
-		--fake)
-			FAKE=1
-			;;
-		*)
-			cmd+="-drive file=$1,if=virtio "
-			;;
+		shift
+		;;
+	--jail)
+		JAIL=1
+		;;
+	--fake)
+		FAKE=1
+		;;
+	*)
+		cmd+="-drive file=$1,if=virtio "
+		;;
 	esac
 	shift
 done
@@ -174,21 +191,21 @@ if [[ $DSPLY -ne 0 && -z $SPICE_CMD ]]; then
 	cmd+="-device virtio-vga-gl -display gtk,gl=on,grab-on-hover=on "
 fi
 
-if [ -z "$cmdline" ]
-then
+if [ -z "$cmdline" ]; then
 	cmdline="root=/dev/sda1 "
 fi
 
-if [ $DAEMON -eq 0 ]
-then
+if [ $DAEMON -eq 0 ]; then
 	cmd+="-monitor stdio "
-fi	
+else
+	cmd+="-daemonize "
+	cmd+="-monitor none "
+fi
 
 fwd_cmd=$ssh_cmd
 fwd_cmd+=$port_cmd
 
-if [ ! -z "$fwd_cmd" ]
-then
+if [ ! -z "$fwd_cmd" ]; then
 	net_cmd="-net user"
 	net_cmd+=$fwd_cmd
 	net_cmd+=" -net nic "
@@ -201,20 +218,17 @@ cmdline_full+=$cmdline_post
 cmd+=$net_cmd
 cmd+="-m $RAM -smp $SMP "
 
-if [ ! -z "$kernel_cmd" ]
-then
+if [ ! -z "$kernel_cmd" ]; then
 	cmd+=$kernel_cmd
 	cmd+="-append "
 	cmd+=$cmdline_full
 fi
 
-if [ $JAIL -eq 1 ]
-then
+if [ $JAIL -eq 1 ]; then
 	cmd="sandbox -t qemu_t firejail "$cmd
 fi
 
-while [ "$FOLDER_AMT" -gt 0 ]
-do
+while [ "$FOLDER_AMT" -gt 0 ]; do
 	FOLDER_AMT=$(($FOLDER_AMT - 1))
 	echo
 	echo "==========================================================================="
@@ -223,8 +237,7 @@ do
 	echo "==========================================================================="
 done
 
-if [ "$SPICE_CMD" != "" ]
-then
+if [ "$SPICE_CMD" != "" ]; then
 	echo "==========================================================================="
 	echo -e $SPICE_CMD
 	echo "==========================================================================="
@@ -235,8 +248,7 @@ fi
 # 	sleep 3
 # fi
 
-if [ $FAKE -eq 0 ]
-then
+if [ $FAKE -eq 0 ]; then
 	eval $cmd
 else
 	echo $cmd
